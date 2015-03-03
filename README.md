@@ -1,3 +1,2 @@
 # Web3D
-Web3D assignme
-＝＝＝＝＝＝＝＝＝＝＝
+Web3D assignments.
