@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+	<link rel=stylesheet type="text/css" href="css/style.css">
+	<head>
+		<title>Door</title>
+	</head>
+
+	<body>
+		<div id="info"> 
+			<p> Door </p> 
+			<button id="changeTexture" class="btn" onclick="changeTexture()" onfocus="blur(this)">Change Texture</button><br><br>
+			<div id="range" onfocus="blur(this)"> bumpScale : 0.3 </div> 
+			<input type="range" min="0" max="100" value="30" step="10" onchange="showValue(this.value)">
+		</div>
+
+		<audio id="door_open" hidden="true">
+			<source src="sound/door_open.mp3" type="audio/mpeg">
+			<p>Your browser does not support the audio element.</p>
+		</audio>
+
+		<audio id="door_close" hidden="true">
+			<source src="sound/door_close.mp3" type="audio/mpeg">
+			<p>Your browser does not support the audio element.</p>
+		</audio>
+
+		<audio id="door_creak" hidden="true">
+			<source src="sound/door_creak.mp3" type="audio/mpeg">
+			<p>Your browser does not support the audio element.</p>
+		</audio>
+
+		<script src="js/three.min.js"></script>
+		<script src="js/OrbitControls.js"></script>
+		<script src="js/KeyboardState.js"></script>
+		<script type="text/javascript">
+			// basic variables. scene, camera, etc.
+			var camera, scene, renderer, clock, control;
+			var keyboard = new KeyboardState();
+			// door object
+			var door;
+			var frame, frame_bottom, frame_top, frame_left, frame_right;
+			var plank, plank_door;
+			var cylindrical_lock_front, cylindrical_lock_back, cylindrical_body;
+			var cylindrcal_side_top, cylindrcal_side_bottom;
+			// door attributes
+			var width = 60, height = 1.8 * width;
+			var frame_thickness = 4;
+			// object attributes
+			var material;
+			var bumpScale = 0.3;
+			var flag = 1, texture_name = "images/texture_1.jpg", bumpMap_name = "images/bumpmap_1.jpg";
+			// door is opend or closed.
+			var open = false, angle = 0;
+			// sound effects
+			var door_open  = document.getElementById("door_open");
+			var door_close = document.getElementById("door_close");
+			var door_creak = document.getElementById("door_creak");
+
+			init();
+			animate();
+
+			var c = document.getElementById("changeTexture");
+			function blur(element) {
+				element.blur();
+			}
+
+			door_open.onended = function() {
+				if(open) {
+			    	door_creak.currentTime = 0.2;
+			    	door_creak.play();
+				}
+			};
+
+			door_creak.onended = function() {
+				if(!open && angle <= 0.5) {
+					door_close.currentTime = 0.1;
+					door_close.play();
+				}
+			};
+
+			function init() {
+			    clock = new THREE.Clock();
+			    scene = new THREE.Scene();
+
+			    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
+			    camera.position.z = 300;
+			    scene.add(camera);
+
+			    door = new THREE.Object3D();
+			    frame = new THREE.Object3D();
+			    plank = new THREE.Object3D();
+
+			    material = new THREE.MeshPhongMaterial({
+					map: THREE.ImageUtils.loadTexture(texture_name),
+					bumpMap: THREE.ImageUtils.loadTexture(bumpMap_name),
+					bumpScale: bumpScale,
+					color: 0xffffff
+				});
+
+			    frame_bottom = draw(width, 2, frame_thickness, -width / 2, 0, 0);
+			    frame_top    = draw(width, 2, frame_thickness, -width / 2, height, 0);
+			    frame_left   = draw(2, height, frame_thickness, -width, height / 2, 0);
+			    frame_right  = draw(2, height, frame_thickness, 0, height / 2, 0);
+			    frame.add(frame_bottom);
+			    frame.add(frame_left);
+			    frame.add(frame_top);
+			    frame.add(frame_right);
+
+			    plank_door = draw(width - 2, height - 2, frame_thickness, -width / 2 , height / 2, 0);
+    			plank.add(plank_door);
+
+    			cylindrical_body = drawCylindricalLockBody();
+    			plank.add(cylindrical_body);
+
+    			cylindrical_lock_front = drawCylindricalLock(6.5);
+    			plank.add(cylindrical_lock_front);
+
+    			cylindrical_lock_back = drawCylindricalLock(-6.5);
+    			plank.add(cylindrical_lock_back);
+
+    			cylindrcal_side_bottom = drawCylindricalSide(height / 4);
+    			plank.add(cylindrcal_side_bottom);
+
+				cylindrcal_side_top = drawCylindricalSide(height - height / 4);
+    			plank.add(cylindrcal_side_top);
+
+			    door.add(frame);
+			    door.add(plank);
+			    door.position.set(width, 0, 0);
+			    scene.add(door);
+
+			    // grid floor
+			    var gridXZ = new THREE.GridHelper(100, 10);
+			    gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+			    scene.add(gridXZ);
+			    // light
+			    light = new THREE.PointLight(0xffffff);
+			    light.position.set(100, 300, 200);
+			    scene.add(light);
+
+			    renderer = new THREE.WebGLRenderer({ 
+			    	alpha: true
+			    });
+			    renderer.setSize(window.innerWidth, window.innerHeight);
+			    renderer.setClearColor(0x000000, 0.9);
+
+			    control = new THREE.OrbitControls(camera, renderer.domElement);
+			    document.body.appendChild(renderer.domElement);
+			    window.addEventListener("resize", onWindowResize, false);
+			}
+
+			function onWindowResize() {
+			    camera.aspect = window.innerWidth / window.innerHeight;
+			    camera.updateProjectionMatrix();
+			    renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+				control.update();	
+				keyboard.update();
+
+				if(keyboard.down("space"))
+					openTheDoor();
+
+			    requestAnimationFrame(animate);
+			    render();
+			}
+
+			function render() {
+				if(open) {
+					angle = (angle + 0.01) >= (Math.PI / 2) ? (Math.PI / 2) : (angle + 0.01);
+					plank.rotation.y = angle;
+				}
+				else {
+					angle = (angle - 0.015) <= (0) ? (0) : (angle - 0.015);
+					plank.rotation.y = angle;
+				}
+
+			    renderer.render(scene, camera);
+			}
+
+			function draw(l, w, h, x, y, z) {
+				var geometry = new THREE.BoxGeometry(l, w, h);
+				var obj = new THREE.Mesh(geometry, material);
+				obj.position.set(x, y, z);
+
+				return obj;
+			}
+
+			function drawCylindricalLockBody() {
+				var geometry = new THREE.CylinderGeometry(1.5, 1, 12, 32);
+				var material = new THREE.MeshPhongMaterial({
+					map: THREE.ImageUtils.loadTexture("images/metalic.jpg"),
+					color: 0xffffff
+				});
+				var cylinder = new THREE.Mesh(geometry, material);
+
+				cylinder.rotation.x = Math.PI / 2;
+				cylinder.position.set(-width + 3, height / 2, 0);
+
+				return cylinder;
+			}
+
+			function drawCylindricalLock(z) {
+				var geometry = new THREE.SphereGeometry(2.5, 32, 32);
+				var material = new THREE.MeshPhongMaterial({
+					map: THREE.ImageUtils.loadTexture("images/metalic.jpg"),
+					color: 0xffffff
+				});
+				var sphere = new THREE.Mesh(geometry, material);
+
+				sphere.position.set(-width + 3, height / 2, z);
+
+				return sphere;
+			}
+
+			function drawCylindricalSide(h) {
+				var geometry = new THREE.CylinderGeometry(1.1, 1.1, 15, 32);
+				var material = new THREE.MeshPhongMaterial({
+					map: THREE.ImageUtils.loadTexture("images/metalic.jpg"),
+					color: 0xffffff
+				});
+				var cylinder = new THREE.Mesh(geometry, material);
+
+				cylinder.position.set(-0.4, h, 2);
+
+				return cylinder;
+			}
+
+			function openTheDoor() {
+				open ^= true;
+				if(open) {
+					door_close.pause();
+					door_close.currentTime = 0;
+					if(angle == 0) {
+						door_open.currentTime = 0.2;
+						door_open.play();	
+					}
+					else {
+						door_creak.currentTime = 0.6;
+						door_creak.play();	
+					}
+				}
+				else {
+					door_open.pause();
+					door_open.currentTime = 0;
+					door_creak.pause();	
+					if(angle >= Math.PI / 5) {
+						door_creak.currentTime = 0.6;
+						door_creak.play();	
+					}
+					else {
+						door_close.currentTime = 0;
+						door_close.play();
+					}
+				}
+			}
+
+			function showValue(val) {
+				bumpScale = val / 100.0;
+				var str = "";
+				if(bumpScale == 0)
+					str = "0.0";
+				else if(bumpScale == 1)
+					str = "1.0";
+				else
+					str = "" + bumpScale;
+
+				document.getElementById("range").innerHTML = "bumpScale : " + str;
+				material.bumpScale = bumpScale;
+			}
+
+			function changeTexture() {
+				if(flag) {
+					texture_name = "images/texture.png";
+					bumpMap_name = "images/bumpmap.png";
+				}
+				else {
+					texture_name = "images/texture_1.jpg";
+					bumpMap_name = "images/bumpmap_1.jpg";
+				}
+
+				flag ^= 1;
+				material.map = THREE.ImageUtils.loadTexture(texture_name);
+				material.bumpMap = THREE.ImageUtils.loadTexture(bumpMap_name);
+			}
+		</script>
+	</body>
+</html>
