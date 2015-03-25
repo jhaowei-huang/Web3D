@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Sun, Moon and Earth</title>
+		<style type="text/css">
+			#info {
+			    position: absolute;
+			    top: 0px;
+			    width: 100%;
+			    padding: 10px;
+			    text-align: left;
+			    color: #ff0000
+			}
+
+			.btn {
+				cursor: pointer;
+			  	border-radius: 5px;
+			  	text-decoration: none;
+			  	font-size: 22px;
+			  	display: inline-block;
+			}
+
+			.btn {
+			  color: #e74c3c;
+			  border: 2px rgb(255, 30, 30) solid;
+			  background-color: rgba(80, 80, 80, 0.2);
+			}
+
+			.btn:hover {
+			  color: #fff;
+			  background-color: rgba(231, 78, 62, 0.6);
+			}
+
+			#bar {
+				cursor: pointer;
+				border-radius: 5px;
+			  	text-decoration: none;
+			  	padding: 10px;
+			  	font-size: 22px;
+			  	display: inline-block;	
+			  	color: #e74c3c;
+			  	border: 2px rgb(255, 30, 30) solid;
+			  	background-color: rgba(80, 80, 80, 0.2);
+			}
+		</style>
+	</head>
+
+	<body>
+		<div id="info"> 
+			<p> Sun, Moon and Earth. A = slower, D = faster, S = animate toggle, Space = BGM toggle</p> 
+			<div id="controller"> Speed 
+				<button class="btn" onclick="decrease()"> < </button>
+				<div id="bar">1</div>
+				<button class="btn" onclick="increase()"> > </button>
+			</div>
+			
+			<br>	
+			<!-- <audio controls autoplay="true" loop="true">
+			  <source src="http://216.227.134.162/ost/star-wars-dark-forces/xpgezahtot/01-dark-forces-opening-titles.mp3">
+			  Your browser does not support the audio tag.
+			</audio> -->
+			<audio id="player" controls autoplay="true" loop="true">
+			  <source type="audio/mpeg" src="BGM.mp3">
+			  Your browser does not support the audio tag.
+			</audio>
+
+		</div>
+
+		<script src="js/three.min.js"></script>
+		<script src="js/OrbitControls.js"></script>
+		<script src="js/KeyboardState.js"></script>
+		<script type="text/javascript">
+			var camera, scene, renderer, sun, earth, angle = 0, clock, control;
+			var orbitAngleMoon, orbitAngleEarth;
+			var rotateAngleMoon, rotateAngleEarth = 0;
+			var rate = 1;
+			var stop = 0;
+			var keyboard = new KeyboardState();
+
+			init();
+			animate();
+
+			function init() {
+			    clock = new THREE.Clock();
+			    scene = new THREE.Scene();
+
+			    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 2000);
+			    camera.position.z = 300;
+			    scene.add(camera);
+
+			    sun = new THREE.Mesh(new THREE.SphereGeometry(35, 20, 20),
+			    new THREE.MeshBasicMaterial({
+			    	map: new THREE.ImageUtils.loadTexture('images/sun.jpg')
+			    }));
+
+			    earth = new THREE.Mesh(new THREE.SphereGeometry(15, 20, 20),
+			    new THREE.MeshBasicMaterial({
+					map: new THREE.ImageUtils.loadTexture('images/earth.jpg')
+			    }));
+			    
+			    moon = new THREE.Mesh(new THREE.SphereGeometry(5, 20, 20),
+			    new THREE.MeshBasicMaterial({
+			        map: new THREE.ImageUtils.loadTexture('images/moon.jpg')
+			    }));
+
+			    earth.add(moon);
+			    sun.add(earth);
+			    scene.add(sun);
+
+			    var path = "images/";
+			    var file = "bg_1";
+			    var format = ".jpg";
+
+			    var urls = [
+			    	path + file + format,
+				  	path + file + format,
+				  	path + file + format,
+				  	path + file + format,
+				  	path + file + format,
+				  	path + file + format
+				];
+
+				var cubemap = THREE.ImageUtils.loadTextureCube(urls); // load textures
+				cubemap.format = THREE.RGBFormat;
+
+				var shader = THREE.ShaderLib['cube']; // init cube shader from built-in lib
+				shader.uniforms['tCube'].value = cubemap; // apply textures to shader
+
+				// create shader material
+				var skyBoxMaterial = new THREE.ShaderMaterial({
+					fragmentShader: shader.fragmentShader,
+				  	vertexShader: shader.vertexShader,
+				  	uniforms: shader.uniforms,
+				  	depthWrite: true,
+				  	side: THREE.BackSide
+				});
+
+				// create skybox mesh
+				var skybox = new THREE.Mesh(
+					new THREE.CubeGeometry(1000, 1000, 1000),
+				  	skyBoxMaterial
+				);
+
+				scene.add(skybox);
+
+			    // var gridXZ = new THREE.GridHelper(100, 10);
+			    // gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
+			    // scene.add(gridXZ);
+
+			    light = new THREE.PointLight(0xffffff);
+			    light.position.set(100, 300, 200);
+			    scene.add(light);
+
+			    renderer = new THREE.WebGLRenderer();
+			    renderer.setSize(window.innerWidth, window.innerHeight);
+			    renderer.setClearColor(0x777777);
+
+			    control = new THREE.OrbitControls(camera, renderer.domElement);
+			    document.body.appendChild(renderer.domElement);
+			    window.addEventListener('resize', onWindowResize, false);
+			}
+
+			function onWindowResize() {
+			    camera.aspect = window.innerWidth / window.innerHeight;
+			    camera.updateProjectionMatrix();
+			    renderer.setSize(window.innerWidth, window.innerHeight);
+			}
+
+			function animate() {
+			    control.update();
+			    keyboard.update();
+
+				if(keyboard.down("S")) {
+					stop ^= 1;
+					var bar = document.getElementById("bar");
+					if(stop)
+						bar.innerHTML = "0";
+					else
+						bar.innerHTML = rate;
+				}
+				if(keyboard.down("A")) {
+					stop = 0;
+					decrease();
+				}
+				if(keyboard.down("D")) {
+					stop = 0;
+					increase();
+				}
+				if(keyboard.down("space")) {
+					var player = document.getElementById("player");
+					if(player.paused)
+						player.play();
+					else
+						player.pause();
+				}
+
+			    requestAnimationFrame(animate);
+			    render();
+			}
+
+			function render() {
+				if(!stop) {
+					rotateAngleEarth += Math.PI / 180 * rate; // a day
+				    rotateAngleMoon = orbitAngleMoon = rotateAngleEarth / 30; // a month
+				    orbitAngleEarth = rotateAngleMoon / 12; // a year
+
+				    earth.position.set(100 * Math.cos(orbitAngleEarth), 0, -100 * Math.sin(orbitAngleEarth));
+				    earth.rotation.y = rotateAngleEarth;
+
+				    moon.position.set(25 * Math.cos(orbitAngleMoon - rotateAngleEarth), 0, -25 * Math.sin(orbitAngleMoon - rotateAngleEarth));
+				    moon.rotation.y = orbitAngleMoon - rotateAngleEarth;
+			    }
+
+			    renderer.render(scene, camera);
+			}
+
+			function increase() {
+				rate = (rate + 1) > 20 ? (20) : (rate + 1) ;
+				var bar = document.getElementById("bar");
+				bar.innerHTML = rate;
+			}
+
+			function decrease() {
+				rate = (rate - 1) < 1 ? (1) : (rate - 1) ;
+				var bar = document.getElementById("bar");
+				bar.innerHTML = rate;
+			}
+		</script>
+	</body>
+</html>
